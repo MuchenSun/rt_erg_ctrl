@@ -74,11 +74,13 @@ class RTErgodicControl(object):
 
         # sample any past experiences
         if len(self.replay_buffer) > self.batch_size:
-            past_states = self.replay_buffer.sample(self.batch_size)
+            past_states = self.replay_buffer.buffer[-self.batch_size:]
             pred_traj = pred_traj + past_states
-        else:
-            past_states = self.replay_buffer.sample(len(self.replay_buffer))
-            pred_traj = pred_traj + past_states
+        #     past_states = self.replay_buffer.sample(self.batch_size)
+        #     pred_traj = pred_traj + past_states
+        # else:
+        #     past_states = self.replay_buffer.sample(len(self.replay_buffer))
+        #     pred_traj = pred_traj + past_states
 
         # calculate the cks for the trajectory *** this is also in the utils file
         N = len(pred_traj)

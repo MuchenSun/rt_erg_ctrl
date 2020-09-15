@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def convert_phi2phik(basis, phi_val, phi_grid=None):
+def convert_phi2phik(basis, phi_val, phi_grid=None, size=1.0):
     '''
     Converts the distribution to the fourier decompositions
     '''
@@ -9,20 +9,20 @@ def convert_phi2phik(basis, phi_val, phi_grid=None):
         phi_val = phi_val.ravel()
     if phi_grid is None:
         print('--Assuming square grid')
-        phi_grid = np.meshgrid(*[np.linspace(0, 1., int(np.sqrt(len(phi_val))))
+        phi_grid = np.meshgrid(*[np.linspace(0.0, size, int(np.sqrt(len(phi_val))))
                                 for _ in range(2)])
         phi_grid = np.c_[phi_grid[0].ravel(), phi_grid[1].ravel()]
     assert phi_grid.shape[0] == phi_val.shape[0], 'samples are not the same'
 
     return np.sum([basis.fk(x) * v for v, x in zip(phi_val, phi_grid)], axis=0)
 
-def convert_phik2phi(basis, phik, phi_grid=None):
+def convert_phik2phi(basis, phik, phi_grid=None, size=1.0):
     '''
     Reconstructs phi from the Fourier terms
     '''
     if phi_grid is None:
-        print('--Assuming square grid')
-        phi_grid = np.meshgrid(*[np.linspace(0, 1.)
+        print('--Assuming square grid (default resolution 50)')
+        phi_grid = np.meshgrid(*[np.linspace(0.0, size)
                                 for _ in range(2)])
         phi_grid = np.c_[phi_grid[0].ravel(), phi_grid[1].ravel()]
     phi_val = np.stack([np.dot(basis.fk(x), phik) for x in phi_grid])

@@ -4,15 +4,15 @@ from gym.spaces import Box
 
 class TurtlebotDyn(object):
 
-    def __init__(self):
+    def __init__(self, size=1.0):
         self.observation_space = Box(np.array([0.0, 0.0, 0.0]),
-                                     np.array([1.0, 1.0, 2*pi]),
+                                     np.array([size, size, 2*pi]),
                                      dtype=np.float32)
         self.action_space = Box(np.array([-1.0, -1.0]),
                                 np.array([+1.0, +1.0]),
                                 dtype=np.float32)
         self.explr_space = Box(np.array([0.0, 0.0]),
-                               np.array([1.0, 1.0]),
+                               np.array([size, size]),
                                dtype=np.float32)
         self.explr_idx = [0, 1]
         self.dt = 0.1

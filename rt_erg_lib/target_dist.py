@@ -10,19 +10,21 @@ class TargetDist(object):
     unity env
     '''
 
-    def __init__(self, num_nodes=2, num_pts=50):
+    def __init__(self, num_nodes=2, num_pts=50, size=1.0, \
+                 means=[[0.3,0.3],[0.7,0.7]], cov=0.01):
 
         # TODO: create a message class for this
         # rospy.Subscriber('/target_distribution',  CLASSNAME, self.callback)
 
         self.num_pts = num_pts
-        grid = np.meshgrid(*[np.linspace(0, 1, num_pts) for _ in range(2)])
+        self.size = size
+        grid = np.meshgrid(*[np.linspace(0, self.size, num_pts) for _ in range(2)])
         self.grid = np.c_[grid[0].ravel(), grid[1].ravel()]
 
         # self.means = [npr.uniform(0.2, 0.8, size=(2,))
         #                     for _ in range(num_nodes)]
-        self.means = [np.array([0.7, 0.7]), np.array([0.3,0.3])]
-        self.vars  = [np.array([0.1,0.1])**2, np.array([0.1,0.1])**2]
+        self.means = np.array(means)
+        self.vars  = [np.array([cov,cov]) for _ in range(len(means))]
 
         print("means: ", self.means)
 
