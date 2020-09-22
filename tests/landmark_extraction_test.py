@@ -7,7 +7,7 @@ from sensor_msgs.msg import LaserScan
 
 from sklearn.cluster import Birch
 
-pose = np.array([0.0, 0.0, 0.0])
+pose = np.array([0.1, 0.1, 0.0])
 bearings = np.linspace(0, 2*np.pi, 360)
 pub = rospy.Publisher('/landmarks', Marker, queue_size=1)
 
@@ -24,7 +24,7 @@ def callback(msg):
     points = points[dist_flag]
 
     if len(points) > 0:
-        brc = Birch(n_clusters=None, threshold=0.01)
+        brc = Birch(n_clusters=None, threshold=0.05)
         brc.fit(points)
         labels = brc.predict(points)
         u_labels = np.unique(labels)

@@ -7,6 +7,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
+import message_filters
 
 from sklearn.cluster import Birch
 
@@ -14,7 +15,7 @@ from sklearn.cluster import Birch
 class TurtleBot(object):
 
     def __init__(self):
-        self.pose = np.array([0., 0., 0.])
+        self.pose = np.array([0.1, 0.1, 0.])
         self.obsv = []
 
         self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
@@ -30,6 +31,7 @@ class TurtleBot(object):
         rth = arctan2(2*q.x*q.y-2*q.z*q.w, 1-2*q.y**2-2*q.z**2)
         rth = 2*pi - rth % (2*pi)
         self.pose = np.array([rx, ry, rth])
+        print(self.pose)
 
     def scan_callback(self, msg):
         pose = self.pose.copy()
@@ -48,7 +50,7 @@ class TurtleBot(object):
 
         self.obsv = []
         if len(points) > 0:
-            brc = Birch(n_clusters=None, threshold=0.01)
+            brc = Birch(n_clusters=None, threshold=0.05)
             brc.fit(points)
             labels = brc.predict(points)
             u_labels = np.unique(labels)
@@ -61,6 +63,7 @@ class TurtleBot(object):
                     fit_cov = np.trace(np.cov(seg.T))
                 if fit_cov < 0.001 and seg.shape[0]>=3:
                     self.obsv.append(seg.mean(axis=0))
+            print(self.obsv)
 
     def loop(self):
         rospy.spin()
