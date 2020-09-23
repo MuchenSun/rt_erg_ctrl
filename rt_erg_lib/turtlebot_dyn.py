@@ -4,7 +4,7 @@ from gym.spaces import Box
 
 class TurtlebotDyn(object):
 
-    def __init__(self, size=1.0):
+    def __init__(self, size=1.0, dt=0.1):
         self.observation_space = Box(np.array([0.0, 0.0, 0.0]),
                                      np.array([size, size, 2*pi]),
                                      dtype=np.float32)
@@ -15,7 +15,7 @@ class TurtlebotDyn(object):
                                np.array([size, size]),
                                dtype=np.float32)
         self.explr_idx = [0, 1]
-        self.dt = 0.1
+        self.dt = dt#0.1
 
     def fdx(self, x, u):
         self.A =  np.array([[ 0.0, 0.0,-sin(x[2])*u[0]],
