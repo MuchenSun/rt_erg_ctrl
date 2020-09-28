@@ -7,6 +7,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point, Twist
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
 import message_filters
 
 from sklearn.cluster import Birch
@@ -28,13 +29,8 @@ class TurtleBot(object):
         self.pose = np.array([0.1, 0.1, 0.])
         self.obsv = []
 
-        self.odom_sub = message_filters.Subscriber('/odom', Odometry)#, self.odom_callback)
-        self.scan_sub = message_filters.Subscriber('/scan', LaserScan)#, self.scan_callback)
-        self.obsv_pub = rospy.Publisher('/landmarks', Marker, queue_size=1)
-        self.ctrl_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
-
-        ts = message_filters.ApproximateTimeSynchronizer([self.odom_sub, self.scan_sub], 10, 0.01)
-        ts.registerCallback(self.callback)
+        # ts = message_filters.ApproximateTimeSynchronizer([self.odom_sub, self.scan_sub], 10, 0.01)
+        # ts.registerCallback(self.callback)
 
         self.bearings = np.linspace(0, 2*pi, 360)
         self.start_time = time.time()
@@ -46,24 +42,37 @@ class TurtleBot(object):
         self.t_dist = TargetDist()
         self.phik = convert_phi2phik(self.basis, self.t_dist.grid_vals, self.t_dist.grid, self.size)
         self.weights = {'R': np.diag([10, 1])}
-        self.model = TurtlebotDyn(size=self.size, dt=0.2)
+        self.model = TurtlebotDyn(size=self.size, dt=0.1)
         self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=5, batch_size=500)
         self.erg_ctrl.phik = self.phik
         self.log = {'traj':[], 'ctrls':[], 'ctrl_seq':[], 'count':0}
 
-    def callback(self, odom_msg, scan_msg):
-        print('-----------------------------------------')
-        start_time = time.time()
-        # process odometry message
+        # self.odom_sub = message_filters.Subscriber('/odom', Odometry)#, self.odom_callback)
+        # self.scan_sub = message_filters.Subscriber('/scan', LaserScan)#, self.scan_callback)
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
+        self.scan_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback)
+        self.ctrl_sub = rospy.Subscriber('/ctrl_flag', Bool, self.ctrl_callback)
+        self.obsv_pub = rospy.Publisher('/landmarks', Marker, queue_size=1)
+        self.ctrl_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+
+    def odom_callback(self, odom_msg):
         rx = odom_msg.pose.pose.position.x
         ry = odom_msg.pose.pose.position.y
         q = odom_msg.pose.pose.orientation
         rth = arctan2(2*q.x*q.y-2*q.z*q.w, 1-2*q.y**2-2*q.z**2)
         rth = 2*pi - rth % (2*pi)
-        pose = np.array([rx, ry, rth])
-        self.pose = pose.copy()
+        # pose = np.array([rx, ry, rth])
+        # self.pose = pose.copy()
+        self.pose[0] = rx
+        self.pose[1] = ry
+        self.pose[2] = rth
+
+    def scan_callback(self, scan_msg):
+        print('-----------------------------------------')
+        start_time = time.time()
 
         # process scan message
+        pose = self.pose.copy()
         bearings = self.bearings.copy()
 
         ranges = np.array(scan_msg.ranges)
@@ -120,8 +129,10 @@ class TurtleBot(object):
 
         self.obsv_pub.publish(cube_list)
 
-        '''
-        # send control
+        print('elasped time: {}'.format(time.time()-start_time))
+
+    def ctrl_callback(self, ctrl_flag_msg):
+        pose = self.pose.copy()
         ctrl = self.erg_ctrl(pose.copy())
         ctrl_lin = ctrl[0]
         ctrl_ang = ctrl[1]
@@ -133,14 +144,11 @@ class TurtleBot(object):
         vel_msg.angular.y = 0.0
         vel_msg.angular.z = ctrl_ang
         self.ctrl_pub.publish(vel_msg)
-        '''
 
         # log
         self.log['count'] += 1
         self.log['traj'].append(pose.copy())
-        # self.log['ctrls'].append(ctrl.copy())
-
-        print('elasped time: {}'.format(time.time()-start_time))
+        self.log['ctrls'].append(ctrl.copy())
 
     def loop(self):
         rospy.spin()
@@ -158,10 +166,17 @@ ax2_1.set_aspect('equal')
 # ax2_1.set_xlim(0, 1)
 # ax2_1.set_ylim(0, 1)
 xy, vals = robot.t_dist.get_grid_spec()
-ax2_1.contourf(*xy, vals, levels=20)
+# ax2_1.contourf(*xy, vals, levels=20)
 traj = np.array(robot.log['traj'])
 ctrls = np.array(robot.log['ctrls'])
 tf = robot.log['count']
+
+path = np.stack(traj)[:,0:2]
+ck = convert_traj2ck(robot.erg_ctrl.basis, path)
+vals = convert_ck2dist(robot.erg_ctrl.basis, ck)
+vals = vals.reshape(50, 50)
+ax2_1.contourf(*xy, vals, levels=20)
+
 ax2_1.scatter(traj[:,0], traj[:,1], c='r', s=1)
 ax2_2 = fig2.add_subplot(312)
 ax2_2.plot(np.arange(tf), ctrls[:,0], c='b')

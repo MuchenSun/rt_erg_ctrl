@@ -73,7 +73,7 @@ class RTErgodicControl(object):
             x = self.model.step(self.u_seq[t] * 0.)
 
         # sample any past experiences
-        print('replay_buffer.shape: {}, batch_size.shape{}'.format(len(self.replay_buffer), self.batch_size))
+        # print('replay_buffer.shape: {}, batch_size.shape{}'.format(len(self.replay_buffer), self.batch_size))
         if len(self.replay_buffer) > self.batch_size:
             past_states = self.replay_buffer.buffer[-self.batch_size:]
             pred_traj = pred_traj + past_states
