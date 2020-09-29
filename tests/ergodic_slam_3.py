@@ -145,10 +145,10 @@ class TurtleBot(object):
         idx = self.log['count'] % 10 == 0
         pose = self.pose.copy()
 
-        if idx:
-            self.erg_ctrl.barr.update_obstacles(self.obsv)
+        self.erg_ctrl.barr.update_obstacles(self.obsv)
+        _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
 
-            _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
+        if idx:
             self.ctrl_seq = ctrl_seq.copy()
 
             ctrl = self.ctrl_seq[idx]
