@@ -36,14 +36,14 @@ def convert_traj2ck(basis, xt):
     N = len(xt)
     return np.sum([basis.fk(x) for x in xt], axis=0) / N
 
-def convert_ck2dist(basis, ck, grid=None):
+def convert_ck2dist(basis, ck, grid=None, size=1.0):
     '''
     This utility function converts a ck into its time-averaged
     statistics
     '''
     if grid is None:
         print('--Assuming square grid')
-        grid = np.meshgrid(*[np.linspace(0, 1.)
+        grid = np.meshgrid(*[np.linspace(0, size)
                                 for _ in range(2)])
         grid = np.c_[grid[0].ravel(), grid[1].ravel()]
 

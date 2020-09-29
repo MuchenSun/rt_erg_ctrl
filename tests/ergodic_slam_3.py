@@ -1,9 +1,6 @@
 """
-This version use an external signal to synchronize control signal, so
-the frequency is independent from /scan and /odom, which two will have
-their own callbacks to update related attributes in the class. This is
-to solve the slow frequency problem encountered in the previous synchronized
-callback implementation.
+This version is based on ergodic_slam_2, it's used
+to test obstacle collision avoidance with barrier functions
 """
 
 import rospy
@@ -44,14 +41,19 @@ class TurtleBot(object):
         self.start_time = time.time()
 
         # ergodic control config
-        self.size = 1.0
+        self.size = 4.0
         self.explr_space = Box(np.array([0.0,0.0]), np.array([self.size,self.size]), dtype=np.float64)
-        self.basis = Basis(explr_space=self.explr_space, num_basis=5)
-        self.t_dist = TargetDist()
+        self.basis = Basis(explr_space=self.explr_space, num_basis=10)
+        # self.t_dist = TargetDist()
+        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size)
         self.phik = convert_phi2phik(self.basis, self.t_dist.grid_vals, self.t_dist.grid, self.size)
         self.weights = {'R': np.diag([10, 1])}
         self.model = TurtlebotDyn(size=self.size, dt=0.1)
-        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=5, batch_size=500)
+        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=500)
+
+        self.obstacles = np.array([[1.,2.], [2.,1.], [2.,2.], [3.,1.], [1.,3.], [2.,3.], [3.,2.]])
+        self.erg_ctrl.barr.update_obstacles(self.obstacles)
+
         self.erg_ctrl.phik = self.phik
         self.log = {'traj':[], 'ctrls':[], 'ctrl_seq':[], 'count':0}
 
@@ -107,7 +109,7 @@ class TurtleBot(object):
                     fit_cov = 10
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
-                if fit_cov < 0.001 and seg.shape[0]>=5:
+                if fit_cov < 0.001 and seg.shape[0]>=4:
                     self.obsv.append(seg.mean(axis=0))
 
         print('odom: {}\nlandmarks:\n{}'.format(pose, self.obsv))
@@ -140,18 +142,38 @@ class TurtleBot(object):
         print('elasped time: {}'.format(time.time()-start_time))
 
     def ctrl_callback(self, ctrl_flag_msg):
+        idx = self.log['count'] % 10 == 0
         pose = self.pose.copy()
-        ctrl = self.erg_ctrl(pose.copy())
-        ctrl_lin = ctrl[0]
-        ctrl_ang = ctrl[1]
-        vel_msg = Twist()
-        vel_msg.linear.x = ctrl_lin
-        vel_msg.linear.y = 0.0
-        vel_msg.linear.z = 0.0
-        vel_msg.angular.x = 0.0
-        vel_msg.angular.y = 0.0
-        vel_msg.angular.z = ctrl_ang
-        self.ctrl_pub.publish(vel_msg)
+
+        if idx:
+            self.erg_ctrl.barr.update_obstacles(self.obsv)
+
+            _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
+            self.ctrl_seq = ctrl_seq.copy()
+
+            ctrl = self.ctrl_seq[idx]
+            ctrl_lin = ctrl[0]
+            ctrl_ang = ctrl[1]
+            vel_msg = Twist()
+            vel_msg.linear.x = ctrl_lin
+            vel_msg.linear.y = 0.0
+            vel_msg.linear.z = 0.0
+            vel_msg.angular.x = 0.0
+            vel_msg.angular.y = 0.0
+            vel_msg.angular.z = ctrl_ang
+            self.ctrl_pub.publish(vel_msg)
+        else:
+            ctrl = self.ctrl_seq[idx]
+            ctrl_lin = ctrl[0]
+            ctrl_ang = ctrl[1]
+            vel_msg = Twist()
+            vel_msg.linear.x = ctrl_lin
+            vel_msg.linear.y = 0.0
+            vel_msg.linear.z = 0.0
+            vel_msg.angular.x = 0.0
+            vel_msg.angular.y = 0.0
+            vel_msg.angular.z = ctrl_ang
+            self.ctrl_pub.publish(vel_msg)
 
         # log
         self.log['count'] += 1
@@ -181,7 +203,7 @@ tf = robot.log['count']
 
 path = np.stack(traj)[:,0:2]
 ck = convert_traj2ck(robot.erg_ctrl.basis, path)
-vals = convert_ck2dist(robot.erg_ctrl.basis, ck)
+vals = convert_ck2dist(robot.erg_ctrl.basis, ck, size=robot.size)
 vals = vals.reshape(50, 50)
 ax2_1.contourf(*xy, vals, levels=20)
 

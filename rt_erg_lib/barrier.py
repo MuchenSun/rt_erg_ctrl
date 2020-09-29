@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 
 class Barrier(object):
@@ -12,6 +13,11 @@ class Barrier(object):
         self.pow = pow
         self.weight = weight
         self.eps = 0.01
+        self.eps2 = 0.25
+        self.obstacles = []
+
+    def update_obstacles(self, obstacles):
+        self.obstacles = copy.copy(obstacles)
 
     def cost(self, x):
         '''
@@ -20,6 +26,10 @@ class Barrier(object):
         cost = 0.
         cost += np.sum((x > self.explr_space.high-self.eps) * (x - (self.explr_space.high-self.eps))**self.pow)
         cost += np.sum((x < self.explr_space.low+self.eps) * (x - (self.explr_space.low+self.eps))**self.pow)
+
+        for obst in self.obstacles:
+            cost += (np.sum((x-obst)**2) < self.eps2**2) * (np.sum((x-obst)**2) - self.eps2**2)**self.pow
+
         return self.weight * cost
 
     def dx(self, x):
@@ -28,6 +38,10 @@ class Barrier(object):
         state
         '''
         dx = np.zeros(x.shape)
-        dx += 2*(x > (self.explr_space.high-self.eps)) * (x - (self.explr_space.high-self.eps))
-        dx += 2*(x < (self.explr_space.low+self.eps)) * (x - (self.explr_space.low+self.eps))
+        dx += self.pow * (x > (self.explr_space.high-self.eps)) * (x - (self.explr_space.high-self.eps))**(self.pow-1)
+        dx += self.pow * (x < (self.explr_space.low+self.eps)) * (x - (self.explr_space.low+self.eps))**(self.pow-1)
+
+        for obst in self.obstacles:
+            dx += self.pow * (np.sum((x-obst)**2) < self.eps2**2) * (np.sum((x-obst)**2) - self.eps2**2)**(self.pow-1) * 2*(x-obst)
+
         return self.weight * dx
