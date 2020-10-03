@@ -36,6 +36,11 @@ class TurtleBot(object):
         # basic config
         self.pose = np.array([0.1, 0.1, 0.])
         self.obsv = []
+        self.old_obsv = []
+        self.curr_obsv = []
+
+        # ts = message_filters.ApproximateTimeSynchronizer([self.odom_sub, self.scan_sub], 10, 0.01)
+        # ts.registerCallback(self.callback)
 
         self.bearings = np.linspace(0, 2*pi, 360)
         self.start_time = time.time()
@@ -57,21 +62,17 @@ class TurtleBot(object):
         self.erg_ctrl.phik = self.phik
         self.log = {'traj':[], 'ctrls':[], 'ctrl_seq':[], 'count':0}
 
+        # self.odom_sub = message_filters.Subscriber('/odom', Odometry)#, self.odom_callback)
+        # self.scan_sub = message_filters.Subscriber('/scan', LaserScan)#, self.scan_callback)
+        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
         self.scan_sub = rospy.Subscriber('/scan', LaserScan, self.scan_callback)
         self.ctrl_sub = rospy.Subscriber('/ctrl_flag', Bool, self.ctrl_callback)
         self.obsv_pub = rospy.Publisher('/landmarks', Marker, queue_size=1)
         self.ctrl_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         self.path_pub = rospy.Publisher('/test_path', Path, queue_size=1)
-        self.map_sub = rospy.Publisher('/landmarks_map', Marker, queue_size=1)
 
         self.path_msg = Path()
         self.odom_header = None
-
-        #######
-        # for test only
-        self.old_obsv = []
-        self.curr_obsv = []
-        self.lm_table = []
 
     def odom_callback(self, odom_msg):
         rx = odom_msg.pose.pose.position.x
@@ -128,9 +129,7 @@ class TurtleBot(object):
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
                 if fit_cov < 0.001 and seg.shape[0]>=4:
-                    lm = seg.mean(axis=0)
-                    self.obsv.append(lm.copy())
-
+                    self.obsv.append(seg.mean(axis=0))
 
         print('odom: {}\nlandmarks:\n{}'.format(pose, self.obsv))
 
@@ -220,45 +219,7 @@ class TurtleBot(object):
             self.path_msg.poses.append(copy(pose_msg))
         self.path_pub.publish(self.path_msg)
 
-        # landmarks table test
-        for olm in np.array(self.obsv):
-            tid = 0
-            tflag = 1
-            for tlm in self.lm_table:
-                if np.array_equal(olm, tlm):
-                    print('exactly the same landmark')
-                    tflag = 0
-                elif np.sum((olm-tlm)**2) < 0.01:
-                    self.lm_table[tid] = olm
-                    tflag = 0
-                else:
-                    pass
-                tid += 1
-            if tflag == 1:
-                self.lm_table.append(np.array(olm))
-        cube_list = Marker()
-        cube_list.header.frame_id = 'odom'
-        cube_list.header.stamp = rospy.Time.now()
-        cube_list.ns = 'landmark_map'
-        cube_list.action = Marker.ADD
-        cube_list.pose.orientation.w = 1.0
-        cube_list.id = 0
-        cube_list.type = Marker.CUBE_LIST
-
-        cube_list.scale.x = 0.05
-        cube_list.scale.y = 0.05
-        cube_list.scale.z = 0.5
-        cube_list.color.b = 1.0
-        cube_list.color.a = 1.0
-
-        for landmark in self.lm_table:
-            p = Point()
-            p.x = landmark[0]
-            p.y = landmark[1]
-            p.z = 0.25
-            cube_list.points.append(p)
-
-        self.map_pub.publish(cube_list)
+        # self.path_pub.publish(self.path_msg)
 
     def loop(self):
         rospy.spin()
