@@ -66,6 +66,7 @@ class TurtleBot(object):
         self.ctrl_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         self.path_pub = rospy.Publisher('/test_path', Path, queue_size=1)
         self.map_pub = rospy.Publisher('/landmarks_map', Marker, queue_size=1)
+        self.ekf_pub = rospy.Publisher('/ekf_odom', Odometry, queue_size=1)
 
         self.path_msg = Path()
         self.odom_header = None
@@ -94,10 +95,10 @@ class TurtleBot(object):
         self.pose[0] = rx
         self.pose[1] = ry
         self.pose[2] = rth
+        print('odom child_frame_id: {}'.format(odom_msg.child_frame_id))
 
-
-        self.path_msg.header = copy(odom_msg.header)
         '''
+        self.path_msg.header = copy(odom_msg.header)
         curr_pose = copy(odom_msg.pose.pose)
         curr_pose_stamped = PoseStamped()
         curr_pose_stamped.header = copy(odom_msg.header)
@@ -317,12 +318,22 @@ class TurtleBot(object):
 
         print('r: {} | {}'.format(pose, self.ekf_mean[0:3]))
         print(len(self.ekf_mean))
+        ekf_odom = Odometry()
+        ekf_odom.header = copy(self.odom_header)
+        ekf_odom.child_frame_id = "base_footprint"
+        ekf_odom.pose.pose.position.x = self.ekf_mean[0]
+        ekf_odom.pose.pose.position.y = self.ekf_mean[1]
+        ekf_odom.pose.covariance[0] = self.ekf_cov[0][0]
+        ekf_odom.pose.covariance[1] = self.ekf_cov[1][1]
+        self.ekf_pub.publish(ekf_odom)
+        print('ekf cov: ', np.trace(self.ekf_cov))
 
         ########
         # ctrl
         ########
         self.erg_ctrl.barr.update_obstacles(self.obsv)
-        _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
+        # _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
+        _, ctrl_seq = self.erg_ctrl(self.ekf_mean[0:3].copy(), seq=True)
 
         if idx == 0:
             self.ctrl_seq = ctrl_seq.copy()
