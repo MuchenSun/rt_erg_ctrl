@@ -81,8 +81,9 @@ class TurtleBot(object):
         # ekf
         self.ekf_mean = np.array([0.0, 0.0, 0.0])
         self.ekf_cov = np.diag([1e-09 for _ in range(3)])
-        self.ekf_R = np.diag([0.04, 0.04, 0.01])
-        self.ekf_Q = np.diag([0.01, 0.01])
+        self.ekf_R = np.diag([0.02, 0.02, 0.01])
+        self.ekf_Q = np.diag([0.03, 0.01])
+        self.init_flag = False
 
     def odom_callback(self, odom_msg):
         rx = odom_msg.pose.pose.position.x
@@ -106,13 +107,19 @@ class TurtleBot(object):
         self.path_msg.poses.append(copy(curr_pose_stamped))
         '''
         self.odom_header = copy(odom_msg.header)
+        if self.init_flag is False:
+            self.ekf_mean[0] = rx
+            self.ekf_mean[1] = ry
+            self.ekf_mean[2] = rth
+            self.init_flag = True
 
     def scan_callback(self, scan_msg):
         print('\n\n-------------------scan callback----------------------')
         start_time = time.time()
 
         # process scan message
-        pose = self.pose.copy()
+        # pose = self.pose.copy()
+        pose = self.ekf_mean[0:3].copy()
         bearings = self.bearings.copy()
 
         ranges = np.array(scan_msg.ranges)
@@ -144,8 +151,8 @@ class TurtleBot(object):
                     fit_cov = 10
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
-                if fit_cov < 0.001 and seg.shape[0]>=4:
-                    lm = seg.mean(axis=0)
+                lm = seg.mean(axis=0)
+                if fit_cov < 0.001 and seg.shape[0]>=5 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
                     self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan.mean(axis=0))
 
@@ -180,7 +187,6 @@ class TurtleBot(object):
 
     def ctrl_callback(self, ctrl_flag_msg):
         print('----ctrl callback----')
-        idx = self.log['count'] % 10
         pose = self.pose.copy()
         pose[2] = self.normalize(pose[2])
         self.old_obsv = np.array(self.curr_obsv, copy=True)
@@ -195,8 +201,8 @@ class TurtleBot(object):
         tid = 0
         for olm in self.curr_obsv:
             # for each observation
+            '''
             tflag = 1
-
             for lid in range(num_lm):
                 # compare it with observed landmark
                 tlm = self.ekf_mean[3+lid*2:5+lid*2]
@@ -210,12 +216,31 @@ class TurtleBot(object):
                     break
                 else:
                     pass
-            if tflag == 1:
+            '''
+            ds_score = []
+            for lid in range(num_lm):
+                # compare it with observed landmarks
+                tlm = self.ekf_mean[3+lid*2 : 5+lid*2]
+                lm_diff = np.sum((olm-tlm)**2)
+                ds_score.append(lm_diff)
+
+            if len(ds_score) > 0:
+                if min(ds_score) > 0.5: # new landmark
+                    self.obsv_table.append(num_lm+tid)
+                    self.ekf_mean = np.concatenate((self.ekf_mean, olm))
+                    self.ekf_cov = np.block([[self.ekf_cov, np.zeros((self.ekf_cov.shape[0],2))],
+                                             [np.zeros((2,self.ekf_cov.shape[0])), np.eye(2)*1000]])
+                    tid += 1
+                else:
+                    lidx = np.argmin(ds_score)
+                    self.obsv_table.append(lidx)
+            else:
                 self.obsv_table.append(num_lm+tid)
                 self.ekf_mean = np.concatenate((self.ekf_mean, olm))
                 self.ekf_cov = np.block([[self.ekf_cov, np.zeros((self.ekf_cov.shape[0],2))],
                                          [np.zeros((2,self.ekf_cov.shape[0])), np.eye(2)*1000]])
                 tid += 1
+
         print('obsv: {}'.format(self.curr_obsv))
         print('obsv table: {}'.format(self.obsv_table))
 
@@ -263,9 +288,14 @@ class TurtleBot(object):
         self.ekf_mean[0] = pose[0]
         self.ekf_mean[1] = pose[1]
         self.ekf_mean[2] = pose[2]
+        self.ekf_mean[2] = self.normalize(self.ekf_mean[2])
+        # self.ekf_mean[0] += np.cos(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
+        # self.ekf_mean[1] += np.sin(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
+        # self.ekf_mean[2] += prev_ctrl[1] * 0.1
 
-        if update_flag is False:
-            num_obsv = len(self.obsv_table)
+        # if update_flag is False:
+        if True:
+            num_obsv = len(self.curr_obsv)
             H = np.zeros((2*num_obsv, self.ekf_mean.shape[0]))
             r = self.ekf_mean[0:3].copy()
             ref_obsv = []
@@ -331,11 +361,13 @@ class TurtleBot(object):
         ########
         # ctrl
         ########
+        idx = self.log['count'] % 10
         self.erg_ctrl.barr.update_obstacles(self.obsv)
         # _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
         _, ctrl_seq = self.erg_ctrl(self.ekf_mean[0:3].copy(), seq=True)
 
         if idx == 0:
+            print('update ctrl seq')
             self.ctrl_seq = ctrl_seq.copy()
 
             ctrl = self.ctrl_seq[idx]
@@ -350,6 +382,7 @@ class TurtleBot(object):
             vel_msg.angular.z = ctrl_ang
             self.ctrl_pub.publish(vel_msg)
         else:
+            print('follow ctrl seq')
             ctrl = self.ctrl_seq[idx]
             ctrl_lin = ctrl[0]
             ctrl_ang = ctrl[1]
