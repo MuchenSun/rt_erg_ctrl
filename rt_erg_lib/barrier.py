@@ -13,7 +13,7 @@ class Barrier(object):
         self.pow = pow
         self.weight = weight
         self.eps = 0.01
-        self.eps2 = 0.25
+        self.eps2 = 0.35
         self.pow2 = pow
         self.obstacles = []
 

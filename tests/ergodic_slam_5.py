@@ -77,6 +77,22 @@ class TurtleBot(object):
         self.curr_obsv = []
         self.lm_table = []
 
+        cube_list = Marker()
+        cube_list.header.frame_id = 'odom'
+        cube_list.header.stamp = rospy.Time.now()
+        cube_list.ns = 'landmark_map'
+        cube_list.action = Marker.ADD
+        cube_list.pose.orientation.w = 1.0
+        cube_list.id = 0
+        cube_list.type = Marker.CUBE_LIST
+
+        cube_list.scale.x = 0.05
+        cube_list.scale.y = 0.05
+        cube_list.scale.z = 0.5
+        cube_list.color.b = 1.0
+        cube_list.color.a = 1.0
+        self.cube_list = cube_list
+
         #######
         # ekf
         self.ekf_mean = np.array([0.0, 0.0, 0.0])
@@ -118,8 +134,8 @@ class TurtleBot(object):
         start_time = time.time()
 
         # process scan message
-        # pose = self.pose.copy()
-        pose = self.ekf_mean[0:3].copy()
+        pose = self.pose.copy()
+        # pose = self.ekf_mean[0:3].copy()
         bearings = self.bearings.copy()
 
         ranges = np.array(scan_msg.ranges)
@@ -152,13 +168,14 @@ class TurtleBot(object):
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
                 lm = seg.mean(axis=0)
-                if fit_cov < 0.001 and seg.shape[0]>=5 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
+                if fit_cov < 0.001 and seg.shape[0]>=3 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
                     self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan.mean(axis=0))
 
         print('odom: {}\nlandmarks:\n{}'.format(pose, len(self.obsv)))
 
         # publish observed landmarks
+        '''
         cube_list = Marker()
         cube_list.header.frame_id = 'odom'
         cube_list.header.stamp = rospy.Time.now()
@@ -173,15 +190,16 @@ class TurtleBot(object):
         cube_list.scale.z = 0.5
         cube_list.color.b = 1.0
         cube_list.color.a = 1.0
+        '''
 
         for landmark in self.obsv:
             p = Point()
             p.x = landmark[0]
             p.y = landmark[1]
             p.z = 0.25
-            cube_list.points.append(p)
+            self.cube_list.points.append(p)
 
-        self.obsv_pub.publish(cube_list)
+        self.obsv_pub.publish(self.cube_list)
 
         print('elasped time: {}'.format(time.time()-start_time))
 
@@ -221,11 +239,11 @@ class TurtleBot(object):
             for lid in range(num_lm):
                 # compare it with observed landmarks
                 tlm = self.ekf_mean[3+lid*2 : 5+lid*2]
-                lm_diff = np.sum((olm-tlm)**2)
+                lm_diff = np.sqrt(np.sum((olm-tlm)**2))
                 ds_score.append(lm_diff)
 
             if len(ds_score) > 0:
-                if min(ds_score) > 0.5: # new landmark
+                if min(ds_score) > 0.4: # new landmark
                     self.obsv_table.append(num_lm+tid)
                     self.ekf_mean = np.concatenate((self.ekf_mean, olm))
                     self.ekf_cov = np.block([[self.ekf_cov, np.zeros((self.ekf_cov.shape[0],2))],
@@ -285,13 +303,14 @@ class TurtleBot(object):
                     [np.zeros((2*num_lm, 3)), np.zeros((2*num_lm, 2*num_lm))]
                 ])
         self.ekf_cov = G @ self.ekf_cov @ G.T + BigR
-        self.ekf_mean[0] = pose[0]
-        self.ekf_mean[1] = pose[1]
-        self.ekf_mean[2] = pose[2]
+        # self.ekf_mean[0] = pose[0]
+        # self.ekf_mean[1] = pose[1]
+        # self.ekf_mean[2] = pose[2]
+        # self.ekf_mean[2] = self.normalize(self.ekf_mean[2])
+        self.ekf_mean[0] += np.cos(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
+        self.ekf_mean[1] += np.sin(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
+        self.ekf_mean[2] += prev_ctrl[1] * 0.1
         self.ekf_mean[2] = self.normalize(self.ekf_mean[2])
-        # self.ekf_mean[0] += np.cos(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
-        # self.ekf_mean[1] += np.sin(self.ekf_mean[2]) * prev_ctrl[0] * 0.1
-        # self.ekf_mean[2] += prev_ctrl[1] * 0.1
 
         # if update_flag is False:
         if True:
