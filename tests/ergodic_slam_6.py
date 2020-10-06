@@ -107,8 +107,8 @@ class TurtleBot(object):
         # ekf
         self.ekf_mean = np.array([0.0, 0.0, 0.0])
         self.ekf_cov = np.diag([1e-09 for _ in range(3)])
-        self.ekf_R = np.diag([0.02, 0.02, 0.01])
-        self.ekf_Q = np.diag([0.03, 0.01])
+        self.ekf_R = np.diag([0.01, 0.01, 0.01])
+        self.ekf_Q = np.diag([0.03, 0.03])
         self.init_flag = False
 
     def odom_callback(self, odom_msg):
@@ -387,7 +387,9 @@ class TurtleBot(object):
         # ctrl
         ########
         idx = self.log['count'] % 10
-        self.erg_ctrl.barr.update_obstacles(self.obsv)
+        # self.erg_ctrl.barr.update_obstacles(self.obsv)
+        self.erg_ctrl.barr.update_obstacles(self.ekf_mean[3:].reshape(-1, 2).copy())
+
         # _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
         _, ctrl_seq = self.erg_ctrl(self.ekf_mean[0:3].copy(), seq=True)
 
