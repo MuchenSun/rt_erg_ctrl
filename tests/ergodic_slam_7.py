@@ -24,7 +24,7 @@ import sys
 sys.path.append('../rt_erg_lib')
 from basis import Basis
 from gym.spaces import Box
-from target_dist import TargetDist
+from active_target_dist import TargetDist
 from utils import *
 from ergodic_control import RTErgodicControl
 from turtlebot_dyn import TurtlebotDyn
@@ -44,10 +44,11 @@ class TurtleBot(object):
 
         # ergodic control config
         self.size = 4.0
+        self.num_pts = 50
         self.explr_space = Box(np.array([0.0,0.0]), np.array([self.size,self.size]), dtype=np.float64)
         self.basis = Basis(explr_space=self.explr_space, num_basis=10)
         # self.t_dist = TargetDist()
-        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size)
+        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts)
         self.weights = {'R': np.diag([10, 1])}
         self.model = TurtlebotDyn(size=self.size, dt=0.1)
         self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=500)
@@ -109,6 +110,7 @@ class TurtleBot(object):
         self.ekf_cov = np.diag([1e-09 for _ in range(3)])
         self.ekf_R = np.diag([0.01, 0.01, 0.01])
         self.ekf_Q = np.diag([0.03, 0.03])
+        self.imcov = np.linalg.inv(self.ekf_Q)
         self.init_flag = False
 
     def odom_callback(self, odom_msg):
@@ -148,7 +150,6 @@ class TurtleBot(object):
 
     def scan_callback(self, scan_msg):
         print('\n\n-------------------scan callback----------------------')
-        start_time = time.time()
 
         # process scan message
         pose = self.pose.copy()
@@ -220,10 +221,11 @@ class TurtleBot(object):
 
         self.obsv_pub.publish(self.cube_list)
 
-        print('elasped time: {}'.format(time.time()-start_time))
 
     def ctrl_callback(self, ctrl_flag_msg):
         print('----ctrl callback----')
+        start_time = time.time()
+
         pose = self.pose.copy()
         pose[2] = self.normalize(pose[2])
         self.old_obsv = np.array(self.curr_obsv, copy=True)
@@ -389,15 +391,21 @@ class TurtleBot(object):
         idx = self.log['count'] % 10
         # self.erg_ctrl.barr.update_obstacles(self.obsv)
         self.erg_ctrl.barr.update_obstacles(self.ekf_mean[3:].reshape(-1, 2).copy())
+        self.t_dist.update_og(self.ekf_mean.copy(), self.ekf_cov.copy())
 
-        self.phik = convert_phi2phik(self.basis, self.t_dist.grid_vals, self.t_dist.grid, self.size)
-        self.erg_ctrl.phik = self.phik
-        print('phik updated')
         # _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
         _, ctrl_seq = self.erg_ctrl(self.ekf_mean[0:3].copy(), seq=True)
 
         if idx == 0:
             print('update ctrl seq')
+
+            grid_vals = self.t_dist.update_dist_val(self.ekf_mean.copy(), self.ekf_cov.copy(), self.imcov)
+            print('grid_vals: ', np.sum(grid_vals))
+            np.save('grid_vals.npy', grid_vals)
+            self.phik = convert_phi2phik(self.basis, self.t_dist.grid_vals, self.t_dist.grid, self.size)
+            self.erg_ctrl.phik = self.phik
+            print('phik updated')
+
             self.ctrl_seq = ctrl_seq.copy()
 
             ctrl = self.ctrl_seq[idx]
@@ -446,6 +454,7 @@ class TurtleBot(object):
             self.path_msg.poses.append(copy(pose_msg))
         self.path_pub.publish(self.path_msg)
 
+        print('elasped time: {}'.format(time.time()-start_time))
 
     def loop(self):
         rospy.spin()
