@@ -188,9 +188,31 @@ class TurtleBot(object):
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
                 lm = seg.mean(axis=0)
-                if fit_cov < 0.001 and seg.shape[0]>=3 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
+                if fit_cov < 0.001 and seg.shape[0]>=5 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
                     self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan)
+
+                    lm_x = self.ekf_mean[0] + np.cos(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
+                    lm_y = self.ekf_mean[1] + np.sin(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
+                    cube_list = Marker()
+                    cube_list.header.frame_id = 'odom'
+                    cube_list.header.stamp = rospy.Time.now()
+                    cube_list.ns = 'landmark_point'
+                    cube_list.action = Marker.ADD
+                    cube_list.pose.orientation.w = 1.0
+                    cube_list.id = 0
+                    cube_list.type = Marker.CUBE_LIST
+                    cube_list.scale.x = 0.05
+                    cube_list.scale.y = 0.05
+                    cube_list.scale.z = 0.5
+                    cube_list.color.b = 1.0
+                    cube_list.color.a = 1.0
+                    p = Point()
+                    p.x = lm_x
+                    p.y = lm_y
+                    p.z = 0.25
+                    cube_list.points.append(p)
+                    self.obsv_pub.publish(cube_list)
 
         print('odom: {}\nlandmarks:\n{}'.format(pose, len(self.obsv)))
 
@@ -212,6 +234,7 @@ class TurtleBot(object):
         cube_list.color.a = 1.0
         '''
 
+        '''
         for landmark in self.obsv:
             p = Point()
             p.x = landmark[0]
@@ -220,6 +243,7 @@ class TurtleBot(object):
             self.cube_list.points.append(p)
 
         self.obsv_pub.publish(self.cube_list)
+        '''
 
 
     def ctrl_callback(self, ctrl_flag_msg):
@@ -441,7 +465,7 @@ class TurtleBot(object):
         # publish predicted trajectory
         self.path_msg = Path()
         self.path_msg.header = copy(self.odom_header)
-        dummy_pose = pose.copy()
+        dummy_pose = self.ekf_mean[0:3].copy() #pose.copy()
         for i in range(idx, 80):
             dummy_ctrl = self.ctrl_seq[i]
             dummy_pose += 0.1 * np.array([cos(dummy_pose[2])*dummy_ctrl[0],
