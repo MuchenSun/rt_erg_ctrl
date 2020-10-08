@@ -20,11 +20,16 @@ line_list.pose.orientation.w = 1.0
 line_list.id = 0
 line_list.type = Marker.CUBE_LIST#LINE_LIST
 
-line_list.scale.x = 0.05
-line_list.scale.y = 0.05
-line_list.scale.z = 0.5
+line_list.scale.x = 0.08
+line_list.scale.y = 0.08
+line_list.scale.z = 0.0
 line_list.color.b = 1.0
 line_list.color.a = 1.0
+
+x, y = np.meshgrid(*[np.linspace(0, 4, 51) for _ in range(2)])
+x = x[0:50, 0:50]
+y = y[0:50, 0:50]
+landmarks = np.array([x.reshape(-1), y.reshape(-1)]).T
 
 point_list = []
 for landmark in landmarks:
@@ -42,6 +47,8 @@ for landmark in landmarks:
 
     # line_list.points.append(p1)
     line_list.points.append(p2)
+
+print(type(line_list.points))
 
 while not rospy.is_shutdown():
     pub.publish(line_list)

@@ -48,7 +48,7 @@ class TurtleBot(object):
         self.explr_space = Box(np.array([0.0,0.0]), np.array([self.size,self.size]), dtype=np.float64)
         self.basis = Basis(explr_space=self.explr_space, num_basis=10)
         # self.t_dist = TargetDist()
-        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts)
+        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts, sensor_range=0.5)
         self.weights = {'R': np.diag([10, 1])}
         self.model = TurtlebotDyn(size=self.size, dt=0.1)
         self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=500)
@@ -108,8 +108,8 @@ class TurtleBot(object):
         # ekf
         self.ekf_mean = np.array([0.0, 0.0, 0.0])
         self.ekf_cov = np.diag([1e-09 for _ in range(3)])
-        self.ekf_R = np.diag([0.01, 0.01, 0.01])
-        self.ekf_Q = np.diag([0.03, 0.03])
+        self.ekf_R = np.diag([0.01, 0.01, 0.01]) * 0.1
+        self.ekf_Q = np.diag([0.03, 0.03]) * 0.5
         self.imcov = np.linalg.inv(self.ekf_Q)
         self.init_flag = False
 
@@ -188,7 +188,7 @@ class TurtleBot(object):
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
                 lm = seg.mean(axis=0)
-                if fit_cov < 0.001 and seg.shape[0]>=5 and lm[0]>0 and lm[0]<4 and lm[1]>0 and lm[1]<4:
+                if fit_cov < 0.001 and seg.shape[0]>=3 and raw_scan[0]<=0.5: # and lm[0]>-0.5 and lm[0]<4.5 and lm[1]>-0.5 and lm[1]<4.5:
                     self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan)
 
@@ -413,10 +413,22 @@ class TurtleBot(object):
         # ctrl
         ########
         idx = self.log['count'] % 10
-        # self.erg_ctrl.barr.update_obstacles(self.obsv)
-        self.erg_ctrl.barr.update_obstacles(self.ekf_mean[3:].reshape(-1, 2).copy())
-        self.t_dist.update_og(self.ekf_mean.copy(), self.ekf_cov.copy())
 
+        obstacles = []
+        for lm in self.ekf_mean[3:].reshape(-1, 2).copy():
+            obstacles.append(lm)
+        if len(self.raw_scan)>0:
+            raw_scan = self.raw_scan[-1]
+            raw_lm_x = self.ekf_mean[0] + np.cos(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
+            raw_lm_y = self.ekf_mean[0] + np.sin(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
+            obstacles.append(np.array([raw_lm_x, raw_lm_y]))
+        obstacles = np.array(obstacles)
+
+        # self.erg_ctrl.barr.update_obstacles(self.obsv)
+        # self.erg_ctrl.barr.update_obstacles(self.ekf_mean[3:].reshape(-1, 2).copy())
+        self.erg_ctrl.barr.update_obstacles(obstacles.copy())
+
+        self.t_dist.update_og(self.ekf_mean.copy(), self.ekf_cov.copy())
         # _, ctrl_seq = self.erg_ctrl(pose.copy(), seq=True)
         _, ctrl_seq = self.erg_ctrl(self.ekf_mean[0:3].copy(), seq=True)
 
