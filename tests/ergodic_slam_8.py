@@ -196,11 +196,13 @@ class TurtleBot(object):
                     fit_cov = np.trace(np.cov(seg.T))
                 lm = seg.mean(axis=0)
                 if fit_cov < 0.001 and seg.shape[0]>=3 and raw_scan[0]<=self.sensor_range: # and lm[0]>-0.5 and lm[0]<4.5 and lm[1]>-0.5 and lm[1]<4.5:
-                    self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan)
 
                     lm_x = self.ekf_mean[0] + np.cos(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
                     lm_y = self.ekf_mean[1] + np.sin(raw_scan[1] + self.ekf_mean[2]) * raw_scan[0]
+
+                    self.obsv.append(np.array([lm_x, lm_y]))
+
                     cube_list = Marker()
                     cube_list.header.frame_id = 'odom'
                     cube_list.header.stamp = rospy.Time.now()
@@ -260,8 +262,9 @@ class TurtleBot(object):
         pose = self.pose.copy()
         pose[2] = self.normalize(pose[2])
         self.old_obsv = np.array(self.curr_obsv, copy=True)
-        self.curr_obsv = np.array(self.obsv, copy=True)
         update_flag =np.array_equal(self.old_obsv, self.curr_obsv)
+
+        self.curr_obsv = np.array(self.obsv, copy=True)
 
         ########
         # landmarks table test
