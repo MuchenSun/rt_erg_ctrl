@@ -1,0 +1,5 @@
+Cases when experiment failed:
+1. wrong data association
+2. failed collision avoidance
+3. large localiation error: the robot thinks it can observe landmark there, but it actually doesn't. In this case the correspondence between Fisher information and exploitation failed.
+

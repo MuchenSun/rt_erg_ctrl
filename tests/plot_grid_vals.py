@@ -3,15 +3,19 @@ import matplotlib.pyplot as plt
 import time
 
 
-fig = plt.figure()
+fig = plt.figure(figsize=[3.2,3.2])
 ax = fig.add_subplot(111)
 x, y = np.meshgrid(*[np.linspace(0, 4, 51) for _ in range(2)])
 x = x[1:51, 1:51]
 y = y[1:51, 1:51]
 
+grid_vals = np.load('grid_vals.npy', allow_pickle=True)
 while True:
     start_time = time.time()
-    grid_vals = np.load('grid_vals.npy', allow_pickle=True)
+    try:
+        grid_vals = np.load('grid_vals.npy', allow_pickle=True)
+    except:
+        print('oops, keep going')
     grid_vals = grid_vals.reshape(50, 50)
 
     ax.cla()

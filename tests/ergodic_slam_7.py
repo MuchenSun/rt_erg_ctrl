@@ -94,11 +94,17 @@ class TurtleBot(object):
         cube_list.color.a = 1.0
         self.cube_list = cube_list
 
-        self.real_landmarks = np.array([[2.34, 2.13],  # id: 0
-                                        [0.60, 0.60],  # id: 1
-                                        [0.60, 3.40],  # id: 2
-                                        [3.40, 0.60],  # id: 3
-                                        [3.40, 3.40]]) # id: 4
+        # self.real_landmarks = np.array([[2.34, 2.13],  # id: 0
+        #                                 [0.60, 0.60],  # id: 1
+        #                                 [0.60, 3.40],  # id: 2
+        #                                 [3.40, 0.60],  # id: 3
+        #                                 [3.40, 3.40]]) # id: 4
+        self.real_landmarks = np.array([[2.0, 2.0],  # id: 0
+                                        [0.0, 0.0],  # id: 1
+                                        [4.0, 4.0],  # id: 2
+                                        [0.0, 4.0],  # id: 3
+                                        [4.0, 0.0]]) # id: 4
+
         self.init_pose = np.zeros(3)
         self.raw_odom_traj = []
         self.lm_id = []
@@ -341,6 +347,7 @@ class TurtleBot(object):
 
         if update_flag is False:
         # if True:
+            print('update_flag is False')
             num_obsv = len(self.curr_obsv)
             H = np.zeros((2*num_obsv, self.ekf_mean.shape[0]))
             r = self.ekf_mean[0:3].copy()
