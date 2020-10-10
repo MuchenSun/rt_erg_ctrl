@@ -45,13 +45,14 @@ class TurtleBot(object):
         # ergodic control config
         self.size = 4.0
         self.num_pts = 50
+        self.sensor_range = 0.7
         self.explr_space = Box(np.array([0.0,0.0]), np.array([self.size,self.size]), dtype=np.float64)
         self.basis = Basis(explr_space=self.explr_space, num_basis=10)
         # self.t_dist = TargetDist()
-        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts, sensor_range=0.5)
+        self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts, sensor_range=self.sensor_range)
         self.weights = {'R': np.diag([10, 1])}
         self.model = TurtlebotDyn(size=self.size, dt=0.1)
-        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=500)
+        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=250)
 
         self.obstacles = np.array([[1.,2.], [2.,1.], [2.,2.], [3.,1.], [1.,3.], [2.,3.], [3.,2.]])
         self.erg_ctrl.barr.update_obstacles(self.obstacles)
@@ -194,7 +195,7 @@ class TurtleBot(object):
                 else:
                     fit_cov = np.trace(np.cov(seg.T))
                 lm = seg.mean(axis=0)
-                if fit_cov < 0.001 and seg.shape[0]>=3 and raw_scan[0]<=0.5: # and lm[0]>-0.5 and lm[0]<4.5 and lm[1]>-0.5 and lm[1]<4.5:
+                if fit_cov < 0.001 and seg.shape[0]>=3 and raw_scan[0]<=self.sensor_range: # and lm[0]>-0.5 and lm[0]<4.5 and lm[1]>-0.5 and lm[1]<4.5:
                     self.obsv.append(lm.copy())
                     self.raw_scan.append(raw_scan)
 
@@ -345,8 +346,8 @@ class TurtleBot(object):
         self.ekf_mean[2] += odom_diff[2]
         self.ekf_mean[2] = self.normalize(self.ekf_mean[2])
 
-        if update_flag is False:
-        # if True:
+        # if update_flag is False:
+        if True:
             print('update_flag is False')
             num_obsv = len(self.curr_obsv)
             H = np.zeros((2*num_obsv, self.ekf_mean.shape[0]))
