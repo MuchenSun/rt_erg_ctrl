@@ -49,7 +49,7 @@ class RTErgodicControl(object):
         self._phik = phik
 
 
-    def __call__(self, state, ck_list=None, agent_num=None, seq=False):
+    def __call__(self, state, ck_list=None, agent_num=None, seq=False, turtle_mode=True):
         assert self.phik is not None, 'Forgot to set phik, use set_target_phik method'
 
         self.u_seq[:-1] = self.u_seq[1:]
@@ -113,8 +113,9 @@ class RTErgodicControl(object):
             if (np.abs(self.u_seq[t]) > 1.0).any():
                 self.u_seq[t] /= np.linalg.norm(self.u_seq[t])
 
-            self.u_seq[t][0] = np.clip(self.u_seq[t][0], -0.2, 0.2)
-            self.u_seq[t][1] = np.clip(self.u_seq[t][1], -2.8, 2.8)
+            if turtle_mode is True:
+                self.u_seq[t][0] = np.clip(self.u_seq[t][0], -0.2, 0.2)
+                self.u_seq[t][1] = np.clip(self.u_seq[t][1], -2.8, 2.8)
 
 
         self.replay_buffer.push(state[self.model.explr_idx])

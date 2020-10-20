@@ -52,7 +52,7 @@ class TurtleBot(object):
         self.t_dist = TargetDist(means=[[1.0,1.0],[3.0,3.0]], cov=0.1, size=self.size, num_pts=self.num_pts, sensor_range=self.sensor_range)
         self.weights = {'R': np.diag([10, 1])}
         self.model = TurtlebotDyn(size=self.size, dt=0.1)
-        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=250)
+        self.erg_ctrl = RTErgodicControl(self.model, self.t_dist, weights=self.weights, horizon=80, num_basis=10, batch_size=500)#250)
 
         self.obstacles = np.array([[1.,2.], [2.,1.], [2.,2.], [3.,1.], [1.,3.], [2.,3.], [3.,2.]])
         self.erg_ctrl.barr.update_obstacles(self.obstacles)
@@ -100,11 +100,18 @@ class TurtleBot(object):
         #                                 [0.60, 3.40],  # id: 2
         #                                 [3.40, 0.60],  # id: 3
         #                                 [3.40, 3.40]]) # id: 4
+
+        # self.real_landmarks = np.array([[2.0, 2.0],  # id: 0
+        #                                 [0.0, 0.0],  # id: 1
+        #                                 [4.0, 4.0],  # id: 2
+        #                                 [0.0, 4.0],  # id: 3
+        #                                 [4.0, 0.0]]) # id: 4
+
         self.real_landmarks = np.array([[2.0, 2.0],  # id: 0
-                                        [0.0, 0.0],  # id: 1
-                                        [4.0, 4.0],  # id: 2
-                                        [0.0, 4.0],  # id: 3
-                                        [4.0, 0.0]]) # id: 4
+                                        [0.1, 1.0],  # id: 1
+                                        [3.0, 3.0],  # id: 2
+                                        [1.0, 3.0],  # id: 3
+                                        [3.0, 1.0]]) # id: 4
 
         self.init_pose = np.zeros(3)
         self.raw_odom_traj = []
@@ -261,10 +268,13 @@ class TurtleBot(object):
 
         pose = self.pose.copy()
         pose[2] = self.normalize(pose[2])
+
         self.old_obsv = np.array(self.curr_obsv, copy=True)
+        self.curr_obsv = np.array(self.obsv, copy=True)
         update_flag =np.array_equal(self.old_obsv, self.curr_obsv)
 
-        self.curr_obsv = np.array(self.obsv, copy=True)
+        # for i in range(20):
+        #     print('update_flag: ', update_flag)
 
         ########
         # landmarks table test
@@ -350,8 +360,8 @@ class TurtleBot(object):
         self.ekf_mean[2] += odom_diff[2]
         self.ekf_mean[2] = self.normalize(self.ekf_mean[2])
 
-        # if update_flag is False:
-        if True:
+        if update_flag is False:
+        # if True:
             print('update_flag is False')
             num_obsv = len(self.curr_obsv)
             H = np.zeros((2*num_obsv, self.ekf_mean.shape[0]))

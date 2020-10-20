@@ -1,3 +1,5 @@
+**This repo is cloned from [https://github.com/i-abr/rt_ergodic_control](https://github.com/i-abr/rt_ergodic_control)**
+
 ## Real-Time Ergodic Control 
 This repo contains a python library for the RT ergodic controller for nonlinear systems seen in the following 
 papers.
