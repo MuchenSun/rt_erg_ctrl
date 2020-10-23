@@ -13,7 +13,8 @@ class Basis(object):
         n = explr_space.shape[0]
         k = np.meshgrid(*[[i for i in range(num_basis)] for _ in range(n)])
 
-        self.k = np.c_[k[0].ravel(), k[1].ravel()]
+        # self.k = np.c_[k[0].ravel(), k[1].ravel()]
+        self.k = np.stack([ki.ravel() for ki in k]).T
 
         self.hk = np.zeros(self.k.shape[0])
 

@@ -6,14 +6,14 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from tqdm import tqdm
 
-from single_integrator import SingleIntegrator
+from single_integrator_3d import SingleIntegrator
 from ergodic_control import RTErgodicControl
-from target_dist import TargetDist
+from target_dist_3d import TargetDist
 from utils import convert_phi2phik, convert_ck2dist, convert_traj2ck, convert_phik2phi
 
 env = SingleIntegrator()
 model = SingleIntegrator()
-t_dist = TargetDist(num_nodes=2)
+t_dist = TargetDist(means=[0.2, 0.8, 3], num_nodes=2)
 weights = {'R':np.diag([5 for _ in range(2)])}
 erg_ctrl = RTErgodicControl(model, t_dist, horizon=15, num_basis=10, batch_size=-1, weights=weights)
 erg_ctrl.phik = convert_phi2phik(erg_ctrl.basis, t_dist.grid_vals, t_dist.grid)
